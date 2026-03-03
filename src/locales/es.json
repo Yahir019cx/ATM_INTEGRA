@@ -1,0 +1,79 @@
+{
+  "bienvenido": "Bienvenido a",
+  "pagarServicio": "Pagar servicio",
+  "pagoAnticipo": "Pago de anticipo",
+  "pagarRefaccion": "Pagar refacción",
+  "abonoFactura": "Abono de factura",
+  "recibirAsistencia": "Recibir asistencia",
+  "cambiarIdioma": "Cambiar idioma",
+  "tocaParaIniciar": "Toca la pantalla para iniciar",
+  "warning": "¿Sigues ahí?",
+  "session": "tu sesión caducará en",
+  "button": "Continuar",
+  "servicioDesconocido": "Servicio desconocido",
+  "common": {
+    "cancelar": "Cancelar"
+  },
+  "rfc": {
+    "titulo": "Ingresa tu RFC",
+    "subtitulo": "Confirma tu RFC para continuar con el abono de factura",
+    "label": "RFC",
+    "placeholder": "Ej. ABCD123456XYZ",
+    "consultar": "Consultar",
+    "errorRequerido": "El RFC es requerido",
+    "errorFormato": "El formato del RFC no es válido (12–13 caracteres)"
+  },
+  "asistencia": {
+    "tituloExito": "¡Solicitud Enviada!",
+    "mensajeExito": "En seguida te atenderán",
+    "submensajeExito": "Un asesor estará contigo pronto.",
+    "tituloError": "Error al Enviar",
+    "mensajeError": "No se pudo procesar tu solicitud",
+    "submensajeError": "Por favor, intenta nuevamente o contacta al personal.",
+    "tituloInesperado": "Error Inesperado",
+    "mensajeInesperado": "Ocurrió un problema técnico",
+    "submensajeInesperado": "Por favor, intenta más tarde."
+  },
+  "qr": {
+    "servicioIncorrecto": "El QR escaneado corresponde a \"{servicio}\". Por favor, seleccione la opción correcta.",
+    "tituloErrorQR": "Tipo Incorrecto",
+    "submensajeErrorQR": "Seleccione la opción correcta en el menú principal.",
+    "botonCerrar": "Entendido",
+    "escanea": "Escanea tu QR"
+  },
+  "servicio": {
+    "detalles": "Detalles del servicio",
+    "infoCliente": "Información del Cliente",
+    "infoOrden": "Información de la Orden",
+    "cargos": "Cargos del Servicio",
+    "resumen": "Resumen de Totales",
+    "subtotal": "Subtotal",
+    "impuesto": "Impuesto",
+    "total": "Total",
+    "cancelar": "Cancelar",
+    "pagar": "Pagar",
+    "vehiculo": "Vehículo",
+    "etiquetasCliente": {
+      "CustId": "ID Cliente",
+      "RazonSocial": "Razón Social",
+      "RFC": "RFC",
+      "ApellidoPaterno": "Apellido Paterno",
+      "ApellidoMaterno": "Apellido Materno",
+      "Nombre": "Nombre",
+      "CodigoPostal": "Código Postal",
+      "Calle": "Calle",
+      "NoExterior": "Número Exterior",
+      "NoInterior": "Número Interior",
+      "Colonia": "Colonia",
+      "Estado": "Estado",
+      "EMail": "Correo Electrónico",
+      "Telefono": "Teléfono"
+    },
+    "etiquetasOrden": {
+      "Orden": "Orden",
+      "Asesor": "Asesor",
+      "Placas": "Placas",
+      "Serie": "Serie"
+    }
+  }
+}

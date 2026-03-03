@@ -1,0 +1,79 @@
+{
+  "bienvenido": "Welcome to",
+  "pagarServicio": "Pay service",
+  "pagoAnticipo": "Advance payment",
+  "pagarRefaccion": "Pay parts",
+  "abonoFactura": "Invoice deposit",
+  "recibirAsistencia": "Receive assistance",
+  "cambiarIdioma": "Change language",
+  "tocaParaIniciar": "Tap the screen to start",
+  "warning": "Are you still there?",
+  "session": "your session will expire in",
+  "button": "Continue",
+  "servicioDesconocido": "Unknown service",
+  "common": {
+    "cancelar": "Cancel"
+  },
+  "rfc": {
+    "titulo": "Enter your RFC",
+    "subtitulo": "Confirm your RFC to continue with the invoice payment",
+    "label": "RFC",
+    "placeholder": "E.g. ABCD123456XYZ",
+    "consultar": "Search",
+    "errorRequerido": "RFC is required",
+    "errorFormato": "The RFC format is not valid (12–13 characters)"
+  },
+  "asistencia": {
+    "tituloExito": "Request Sent!",
+    "mensajeExito": "You will be assisted shortly",
+    "submensajeExito": "An advisor will be with you soon.",
+    "tituloError": "Error Sending Request",
+    "mensajeError": "Could not process your request",
+    "submensajeError": "Please try again or contact staff.",
+    "tituloInesperado": "Unexpected Error",
+    "mensajeInesperado": "A technical problem occurred",
+    "submensajeInesperado": "Please try again later."
+  },
+  "qr": {
+    "servicioIncorrecto": "The scanned QR corresponds to \"{servicio}\". Please select the correct option.",
+    "tituloErrorQR": "Incorrect Type",
+    "submensajeErrorQR": "Please select the correct option from the main menu.",
+    "botonCerrar": "Understood",
+    "escanea": "Scan your QR"
+  },
+  "servicio": {
+    "detalles": "Service Details",
+    "infoCliente": "Customer Information",
+    "infoOrden": "Order Information",
+    "cargos": "Service Charges",
+    "resumen": "Summary Totals",
+    "subtotal": "Subtotal",
+    "impuesto": "Tax",
+    "total": "Total",
+    "cancelar": "Cancel",
+    "pagar": "Pay",
+    "vehiculo": "Vehicle",
+    "etiquetasCliente": {
+      "CustId": "Customer ID",
+      "RazonSocial": "Business Name",
+      "RFC": "RFC",
+      "ApellidoPaterno": "Last Name",
+      "ApellidoMaterno": "Second Last Name",
+      "Nombre": "First Name",
+      "CodigoPostal": "Postal Code",
+      "Calle": "Street",
+      "NoExterior": "Exterior Number",
+      "NoInterior": "Interior Number",
+      "Colonia": "Neighborhood",
+      "Estado": "State",
+      "EMail": "Email",
+      "Telefono": "Phone"
+    },
+    "etiquetasOrden": {
+      "Orden": "Order",
+      "Asesor": "Advisor",
+      "Placas": "Plates",
+      "Serie": "Serial Number"
+    }
+  }
+}
