@@ -52,6 +52,7 @@ const WCF_USER = import.meta.env.VITE_WCF_USER
 const WCF_PASSWORD = import.meta.env.VITE_WCF_PASSWORD
 
 let tokenWcfCache = null
+let clvUsuarioCache = null
 
 async function obtenerTokenWCF(retry = false) {
   if (tokenWcfCache) return tokenWcfCache
@@ -69,7 +70,9 @@ async function obtenerTokenWCF(retry = false) {
       }
     )
 
-    tokenWcfCache = res.data?.AutenticacionResult?.token
+    const authResult = res.data?.AutenticacionResult
+    tokenWcfCache = authResult?.token
+    clvUsuarioCache = authResult?.clv_usuario ?? 0
 
     if (!tokenWcfCache) {
       throw new Error('Token WCF inválido')
@@ -79,10 +82,15 @@ async function obtenerTokenWCF(retry = false) {
   } catch (err) {
     if (!retry) {
       tokenWcfCache = null
+      clvUsuarioCache = null
       return obtenerTokenWCF(true)
     }
     throw err
   }
+}
+
+export function getClvUsuario() {
+  return clvUsuarioCache
 }
 
 export async function postWCF(url, body) {
@@ -164,5 +172,6 @@ export { obtenerIdEmpresaActual }
 export function limpiarTokenCache() {
   tokenERPCache = null
   tokenWcfCache = null
+  clvUsuarioCache = null
   idEmpresaCache = null
 }

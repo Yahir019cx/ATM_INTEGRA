@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { URL_Proxy, URL_API_PAYMENT } from '@/urls'
 import { obtenerIdEmpresaActual, SetEmpresaERP, GetTokenERP, getERPState } from './apiConfig'
+import { obtenerCpnyId } from './apiPublicidad'
 
 // ==================== Datos de Facturación ====================
 
@@ -103,4 +104,45 @@ export async function timbrarFactura(params) {
 
   const res = await axios.post(`${URL_API_PAYMENT}/TimbradoCaja`, payload)
   return res.data
+}
+
+// ==================== Facturas Pendientes (ArdocInvoices) ====================
+
+export async function getArdocInvoices(custId, retry = false) {
+  const empresaId = await obtenerIdEmpresaActual()
+  await SetEmpresaERP(empresaId)
+  const { RutaERP, getTokenCache, clearTokenCache } = getERPState()
+  clearTokenCache()
+  await GetTokenERP()
+
+  const cpnyId = await obtenerCpnyId()
+
+  try {
+    const res = await axios.post(
+      RutaERP.value + 'ArdocInvoices',
+      { CpnyId: cpnyId, CustId: custId },
+      {
+        headers: { Token: getTokenCache() },
+        responseType: 'text'
+      }
+    )
+
+    const xml = new DOMParser().parseFromString(res.data, 'text/xml')
+    if (xml.querySelector('Estatus')?.textContent !== '200') return []
+
+    return Array.from(xml.querySelectorAll('Doctos')).map(d => ({
+      CustId: d.querySelector('CustId')?.textContent || '',
+      FechaFactura: d.querySelector('FechaFactura')?.textContent || '',
+      ImporteFactura: parseFloat(d.querySelector('ImporteFactura')?.textContent || '0'),
+      Saldo: parseFloat(d.querySelector('Saldo')?.textContent || '0'),
+      Tipo: d.querySelector('Tipo')?.textContent || '',
+      NoFactura: d.querySelector('NoFactura')?.textContent || ''
+    }))
+  } catch (err) {
+    if (err.response?.status === 401 && !retry) {
+      clearTokenCache()
+      return getArdocInvoices(custId, true)
+    }
+    throw err
+  }
 }
