@@ -15,7 +15,8 @@ import CarruselPublicidad from '@/components/CarruselPublicidad.vue'
 import WarningMessage from '@/components/WarningMessage.vue'
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { enviarSolicitudTelegram, actualizarPago } from '@/services/api'
+import FacturasModal from '@/components/FacturasModal.vue'
+import { enviarSolicitudTelegram, actualizarPago, getClienteListByRFC, getArdocInvoices } from '@/services/api'
 import axios from 'axios'
 
 import { usePublicidad } from '@/composables/usePublicidad'
@@ -38,6 +39,10 @@ const mostrarOverlayRFC = ref(false)
 const overlayRFCModo = ref('input')
 const datosServicio = ref({})
 const servicioModalRef = ref(null)
+const mostrarModalFacturas = ref(false)
+const facturasCliente = ref([])
+const clienteActual = ref({})
+const clienteEmpresaClaveActual = ref('')
 
 // Variables para diálogos
 const mostrarDialogoError = ref(false)
@@ -237,15 +242,36 @@ function cerrarModal() {
 async function onConfirmarRFC(_rfc) {
   overlayRFCModo.value = 'cargando'
   try {
-    // TODO: llamar API con el RFC para consultar la factura
-    // const res = await consultarAbonoFactura(_rfc)
-    // datosServicio.value = res
+    const { cliente, clienteEmpresaClave } = await getClienteListByRFC(_rfc)
+
+    if (!cliente || !clienteEmpresaClave) {
+      overlayRFCModo.value = 'input'
+      mensajeError.value = 'No se encontró información del cliente con ese RFC.'
+      mostrarDialogoError.value = true
+      mostrarOverlayRFC.value = false
+      return
+    }
+
+    const facturas = await getArdocInvoices(clienteEmpresaClave)
+
+    if (!facturas.length) {
+      overlayRFCModo.value = 'input'
+      mensajeError.value = 'No se encontraron facturas pendientes de pago.'
+      mostrarDialogoError.value = true
+      mostrarOverlayRFC.value = false
+      return
+    }
+
+    clienteActual.value = cliente
+    clienteEmpresaClaveActual.value = clienteEmpresaClave
+    facturasCliente.value = facturas
+
     overlayRFCModo.value = 'exito'
     setTimeout(() => {
       mostrarOverlayRFC.value = false
       overlayRFCModo.value = 'input'
-      // TODO: abrir siguiente paso (ej. mostrarModalServicio.value = true)
-    }, 2240)
+      mostrarModalFacturas.value = true
+    }, 1500)
   } catch (e) {
     console.error('Error al consultar RFC:', e)
     overlayRFCModo.value = 'input'
@@ -258,6 +284,13 @@ async function onConfirmarRFC(_rfc) {
 function onCancelarRFC() {
   mostrarOverlayRFC.value = false
   overlayRFCModo.value = 'input'
+}
+
+function onPagoFacturasCompletado(data) {
+  mostrarModalFacturas.value = false
+  console.log('Pago de facturas completado:', data)
+  // TODO: enviar desglose al endpoint correspondiente
+  // data.desglose = [{ NoFactura, monto }, ...]
 }
 
 async function onFacturacionCompletada() {
@@ -353,6 +386,14 @@ watch(mostrandoOverlay, (nuevoValor) => {
     <WarningMessage :model-value="inactivity.mostrarAdvertencia.value" :countdown="inactivity.countdown.value"
       @update:modelValue="val => inactivity.mostrarAdvertencia.value = val" @cancelWarning="inactivity.cancelarAdvertencia" />
     <ServicioModal ref="servicioModalRef" v-model="mostrarModalServicio" :servicioData="datosServicio" @cancelar="cerrarModal" @pago-completado="payment.handlePagoCompletado"/>
+    <FacturasModal
+      v-model="mostrarModalFacturas"
+      :facturas="facturasCliente"
+      :cliente="clienteActual"
+      :clienteEmpresaClave="clienteEmpresaClaveActual"
+      @cancelar="mostrarModalFacturas = false"
+      @pago-completado="onPagoFacturasCompletado"
+    />
     <DialogoErrorServicio v-model="mostrarDialogoError" :mensaje="mensajeError" @cerrar="cerrarDialogoError" />
 
     <!-- Modal de Pregunta Factura -->

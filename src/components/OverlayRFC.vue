@@ -5,13 +5,14 @@ import Document from '@/assets/animations/Document.json'
 import Load from '@/assets/animations/Load.json'
 import ScanSF from '@/assets/animations/ScanSF.json'
 import { useI18n } from 'vue-i18n'
-import { getClienteListByRFC, obtenerCpnyId } from '@/services/api'
+import { obtenerCpnyId } from '@/services/api'
 
 const { t } = useI18n()
 
 const props = defineProps({
   visible: Boolean,
-  rfcPrellenado: { type: String, default: '' }
+  rfcPrellenado: { type: String, default: '' },
+  modo: { type: String, default: 'input' }
 })
 
 const emit = defineEmits(['confirmar', 'cancelar'])
@@ -21,7 +22,6 @@ const rfcError = ref('')
 const rfcInputRef = ref(null)
 const isTextVisible = ref(false)
 const textRef = ref(null)
-const modo = ref('input')
 let observer = null
 
 const splitTitle = computed(() => t('rfc.titulo').split(''))
@@ -47,7 +47,6 @@ watch(() => props.visible, (val) => {
   if (val) {
     rfc.value = props.rfcPrellenado || ''
     rfcError.value = ''
-    modo.value = 'input'
     obtenerCpnyId().catch(console.error)
     setTimeout(() => {
       initTextAnimation()
@@ -60,7 +59,6 @@ watch(() => props.visible, (val) => {
     cleanup()
     rfc.value = ''
     rfcError.value = ''
-    modo.value = 'input'
   }
 }, { immediate: true })
 
@@ -74,7 +72,7 @@ function onRFCInput(value) {
   rfcError.value = ''
 }
 
-async function confirmar() {
+function confirmar() {
   rfcError.value = ''
   if (!rfc.value.trim()) {
     rfcError.value = t('rfc.errorRequerido')
@@ -85,16 +83,7 @@ async function confirmar() {
     return
   }
 
-  modo.value = 'cargando'
-  try {
-    const clientes = await getClienteListByRFC(rfc.value.trim().toUpperCase())
-    modo.value = 'exito'
-    emit('confirmar', clientes)
-  } catch (err) {
-    console.error('Error GetClienteList:', err)
-    rfcError.value = t('rfc.errorConsulta') || 'Error al consultar el RFC'
-    modo.value = 'input'
-  }
+  emit('confirmar', rfc.value.trim().toUpperCase())
 }
 
 function cancelar() {
@@ -106,7 +95,7 @@ function cancelar() {
   <div v-if="visible" class="overlay-rfc">
 
     <!-- ── Formulario de ingreso RFC ── -->
-    <div v-if="modo === 'input'" class="rfc-content">
+    <div v-if="props.modo === 'input'" class="rfc-content">
 
       <!-- Icono animado con anillos pulsantes -->
       <div class="icon-wrapper">
@@ -187,7 +176,7 @@ function cancelar() {
     <!-- ── Animación cargando / éxito (igual que Overlay.vue) ── -->
     <div v-else class="anim-content">
       <Vue3Lottie
-        :animationData="modo === 'cargando' ? Load : ScanSF"
+        :animationData="props.modo === 'cargando' ? Load : ScanSF"
         :loop="true"
         :autoplay="true"
         style="width: 500px; height: 500px"
