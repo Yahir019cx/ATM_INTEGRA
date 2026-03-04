@@ -106,6 +106,57 @@ export async function timbrarFactura(params) {
   return res.data
 }
 
+// ==================== Creación de Pago en SL (InsArdoc) ====================
+
+export async function insArdoc(params, retry = false) {
+  const empresaId = await obtenerIdEmpresaActual()
+  await SetEmpresaERP(empresaId)
+  const { RutaERP, configERPFormData, getTokenCache, clearTokenCache } = getERPState()
+  if (!getTokenCache()) await GetTokenERP()
+
+  const cpnyId = await obtenerCpnyId()
+
+  const facturasXml = params.facturas
+    .map(f => `
+      <Factura>
+        <Tipo>${(f.Tipo || 'IN').trim()}</Tipo>
+        <Pago>${f.monto}</Pago>
+        <Factura>${(f.NoFactura || '').trim()}</Factura>
+      </Factura>`)
+    .join('')
+
+  const xmlBody = `
+    <Pagos>
+      <CpnyId>${cpnyId}</CpnyId>
+      <CustId>${(params.custId || '').trim()}</CustId>
+      <TotalPayment>${params.totalPayment}</TotalPayment>
+      <FormaPago>${(params.formaPago || '04').trim()}</FormaPago>
+      <Folio>${params.folio}</Folio>
+      <Serie>${params.serie}</Serie>
+      <Facturas>${facturasXml}
+      </Facturas>
+    </Pagos>
+  `
+
+  const formData = new FormData()
+  formData.append('data', xmlBody)
+
+  try {
+    const res = await axios.post(
+      RutaERP.value + 'InsArdoc',
+      formData,
+      configERPFormData.value
+    )
+    return res.data
+  } catch (err) {
+    if (err.response?.status === 401 && !retry) {
+      clearTokenCache()
+      return insArdoc(params, true)
+    }
+    throw err
+  }
+}
+
 // ==================== Facturas Pendientes (ArdocInvoices) ====================
 
 export async function getArdocInvoices(custId, retry = false) {

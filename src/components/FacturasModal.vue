@@ -88,6 +88,22 @@ async function openPayModal() {
   } catch (error) {
     console.error('Error al crear registro de pago:', error)
   }
+
+  // Guardar TODO en localStorage ANTES de abrir el pago
+  // Esto sobrevive al reload que hace el pago
+  const desglose = facturasSeleccionadas.value.map(f => ({
+    NoFactura: f.NoFactura,
+    monto: f.monto,
+    Tipo: f.Tipo
+  }))
+  const pendingData = {
+    custId: props.clienteEmpresaClave,
+    totalAPagar: totalAPagar.value,
+    desglose
+  }
+  localStorage.setItem('pendingFacturas', JSON.stringify(pendingData))
+  console.log('✅ pendingFacturas guardado en localStorage:', pendingData)
+
   showPayModal.value = true
 }
 
@@ -97,14 +113,24 @@ function handlePagoExitoso(data) {
 
   const desglose = facturasSeleccionadas.value.map(f => ({
     NoFactura: f.NoFactura,
-    monto: f.monto
+    monto: f.monto,
+    Tipo: f.Tipo
   }))
+
+  // Actualizar pendingFacturas con datos del pago (NO borrar aún)
+  // Se borra solo cuando insArdoc termine exitosamente
+  const pending = JSON.parse(localStorage.getItem('pendingFacturas') || '{}')
+  pending.transactionId = data.transactionId
+  pending.email = data.email
+  pending.formaPago = data.formaPago
+  localStorage.setItem('pendingFacturas', JSON.stringify(pending))
 
   emit('pago-completado', {
     success: true,
     transactionId: data.transactionId,
     amount: data.amount,
     email: data.email,
+    formaPago: data.formaPago,
     desglose
   })
 }
@@ -129,7 +155,7 @@ watch(() => props.modelValue, (val) => {
 <template>
   <PayModal
     v-model="showPayModal"
-    :monto="totalAPagar"
+    :monto="1"
     :datosCliente="cliente"
     :servicioData="{ cliente, facturas: facturasSeleccionadas }"
     @pago-exitoso="handlePagoExitoso"

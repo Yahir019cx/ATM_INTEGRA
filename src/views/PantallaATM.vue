@@ -16,7 +16,7 @@ import WarningMessage from '@/components/WarningMessage.vue'
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import FacturasModal from '@/components/FacturasModal.vue'
-import { enviarSolicitudTelegram, actualizarPago, getClienteListByRFC, getArdocInvoices } from '@/services/api'
+import { enviarSolicitudTelegram, actualizarPago, getClienteListByRFC, getArdocInvoices, insArdoc } from '@/services/api'
 import axios from 'axios'
 
 import { usePublicidad } from '@/composables/usePublicidad'
@@ -26,12 +26,13 @@ import { usePaymentFlow } from '@/composables/usePaymentFlow'
 
 const { t, locale } = useI18n()
 
-// Detectar si viene de 3D Secure
+// Detectar si viene de 3D Secure o tiene pago de facturas pendiente
 const urlParams = new URLSearchParams(window.location.search)
 const viene3DSecure = urlParams.has('id')
+const tienePendingFacturas = !!localStorage.getItem('pendingFacturas')
 
 // Estado principal
-const mostrarCarrusel = ref(!viene3DSecure)
+const mostrarCarrusel = ref(!viene3DSecure && !tienePendingFacturas)
 const mostrandoOverlay = ref(false)
 const overlayTipo = ref('ScanQR')
 const mostrarModalServicio = ref(false)
@@ -286,11 +287,60 @@ function onCancelarRFC() {
   overlayRFCModo.value = 'input'
 }
 
-function onPagoFacturasCompletado(data) {
+async function onPagoFacturasCompletado(data) {
   mostrarModalFacturas.value = false
-  console.log('Pago de facturas completado:', data)
-  // TODO: enviar desglose al endpoint correspondiente
-  // data.desglose = [{ NoFactura, monto }, ...]
+
+  mostrandoOverlay.value = true
+  overlayTipo.value = 'Load'
+
+  try {
+    // Generar Folio (6 dígitos) y Serie (3 letras) al azar
+    const folio = String(Math.floor(Math.random() * 999999) + 1).padStart(6, '0')
+    const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    const serie = Array.from({ length: 3 }, () => letras[Math.floor(Math.random() * 26)]).join('')
+
+    const resultado = await insArdoc({
+      custId: clienteEmpresaClaveActual.value,
+      totalPayment: data.amount,
+      formaPago: data.formaPago || '04',
+      folio,
+      serie,
+      facturas: data.desglose
+    })
+
+    if (resultado.result !== 200) {
+      throw new Error(resultado.message || 'Error al registrar pago en ERP')
+    }
+
+    // Actualizar registro de pago local
+    const registroId = localStorage.getItem('registroId')
+    if (registroId) {
+      try {
+        await actualizarPago(registroId, data.transactionId, data.email || 'N/A', 'completed')
+      } catch (err) {
+        console.error('Error al actualizar registro de pago:', err)
+      }
+    }
+
+    mostrandoOverlay.value = false
+
+    // Todo exitoso, limpiar datos de facturas
+    localStorage.removeItem('pendingFacturas')
+
+    // Mostrar éxito y volver al carrusel
+    payment.transactionIdPago.value = data.transactionId
+    payment.mostrarPagoExitoso.value = true
+
+  } catch (error) {
+    console.error('Error al registrar pago en ERP:', error)
+    mostrandoOverlay.value = false
+    mensajeError.value = error.message || 'Error al registrar el pago en el sistema.'
+    mostrarDialogoError.value = true
+  } finally {
+    localStorage.removeItem('registroId')
+    localStorage.removeItem('paymentEmail')
+    localStorage.removeItem('pendingPayment')
+  }
 }
 
 async function onFacturacionCompletada() {
@@ -321,6 +371,23 @@ async function verificar3DSecure() {
       window.history.replaceState({}, document.title, window.location.pathname)
       localStorage.removeItem('pendingPayment')
 
+      // Detectar si es pago de facturas
+      const pendingFacturasStr = localStorage.getItem('pendingFacturas')
+      if (pendingFacturasStr) {
+        const pendingFacturas = JSON.parse(pendingFacturasStr)
+        clienteEmpresaClaveActual.value = pendingFacturas.custId
+
+        await onPagoFacturasCompletado({
+          success: true,
+          transactionId: response.data.charge.id,
+          amount: pendingFacturas.totalAPagar,
+          email,
+          formaPago,
+          desglose: pendingFacturas.desglose
+        })
+        return
+      }
+
       await payment.handlePagoCompletado({
         transactionId: response.data.charge.id,
         amount: response.data.charge.amount,
@@ -346,6 +413,7 @@ async function manejarPagoFallido(transactionId) {
       console.error('Error al actualizar registro de pago fallido:', updateError)
     }
   }
+  localStorage.removeItem('pendingFacturas')
   payment.limpiarLocalStorage()
   mostrarCarrusel.value = true
 }
@@ -356,7 +424,59 @@ onMounted(async () => {
   await refrescarPublicidad()
   iniciarSSE()
 
-  if (viene3DSecure) {
+  // SIEMPRE verificar primero si hay facturas pendientes en localStorage
+  const pendingFacturasStr = localStorage.getItem('pendingFacturas')
+  if (pendingFacturasStr) {
+    const pendingFacturas = JSON.parse(pendingFacturasStr)
+
+    if (pendingFacturas && pendingFacturas.desglose && pendingFacturas.custId) {
+      clienteEmpresaClaveActual.value = pendingFacturas.custId
+
+      // Si viene de 3D Secure, verificar el pago primero para obtener transactionId real
+      if (viene3DSecure) {
+        const urlP = new URLSearchParams(window.location.search)
+        const txId = urlP.get('id')
+        if (txId) {
+          try {
+            const response = await axios.post(
+              'https://app01.grupomhautomotriz.com:3000/api/transaction_id',
+              { id: txId },
+              { headers: { 'Content-Type': 'application/json' } }
+            )
+            window.history.replaceState({}, document.title, window.location.pathname)
+            localStorage.removeItem('pendingPayment')
+
+            if (response.data.success && response.data.charge?.status === 'completed') {
+              const pendingPayment = JSON.parse(localStorage.getItem('pendingPayment') || 'null')
+              pendingFacturas.transactionId = response.data.charge.id
+              pendingFacturas.email = pendingPayment?.email || pendingFacturas.email || 'N/A'
+              pendingFacturas.formaPago = pendingPayment?.formaPago || pendingFacturas.formaPago || '04'
+            } else {
+              await manejarPagoFallido(txId)
+              return
+            }
+          } catch (err) {
+            console.error('Error verificando 3D Secure:', err)
+            await manejarPagoFallido('N/A')
+            return
+          }
+        }
+      }
+
+      await onPagoFacturasCompletado({
+        success: true,
+        transactionId: pendingFacturas.transactionId || 'N/A',
+        amount: pendingFacturas.totalAPagar,
+        email: pendingFacturas.email || 'N/A',
+        formaPago: pendingFacturas.formaPago || '04',
+        desglose: pendingFacturas.desglose
+      })
+    } else {
+      localStorage.removeItem('pendingFacturas')
+      mostrarCarrusel.value = true
+    }
+  } else if (viene3DSecure) {
+    // Solo servicios (no facturas)
     await verificar3DSecure()
   }
 })
