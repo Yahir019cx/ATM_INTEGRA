@@ -112,7 +112,9 @@ export async function insArdoc(params, retry = false) {
   const empresaId = await obtenerIdEmpresaActual()
   await SetEmpresaERP(empresaId)
   const { RutaERP, configERPFormData, getTokenCache, clearTokenCache } = getERPState()
-  if (!getTokenCache()) await GetTokenERP()
+  // Renovar token siempre antes de InsArdoc 
+  clearTokenCache()
+  await GetTokenERP()
 
   const cpnyId = await obtenerCpnyId()
 
@@ -147,6 +149,13 @@ export async function insArdoc(params, retry = false) {
       formData,
       configERPFormData.value
     )
+    // En cuanto responde InsArdoc OK, borrar pending del localStorage
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('pendingFacturas')
+      localStorage.removeItem('registroId')
+      localStorage.removeItem('paymentEmail')
+      localStorage.removeItem('pendingPayment')
+    }
     return res.data
   } catch (err) {
     if (err.response?.status === 401 && !retry) {

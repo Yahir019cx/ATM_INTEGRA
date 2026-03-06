@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { consultarInfoServicioVenta, actualizarPago, enviarEmailConQR } from '@/services/api'
 
-export function usePaymentFlow({ datosServicio, mostrandoOverlay, overlayTipo, mostrarCarrusel, mostrarModalServicio, extraerDatosXML }) {
+export function usePaymentFlow({ datosServicio, mostrandoOverlay, overlayTipo, mostrarCarrusel, mostrarModalServicio, extraerDatosXML, hayPendingFacturas }) {
   const mostrarPreguntaFactura = ref(false)
   const mostrarFormularioFactura = ref(false)
   const mostrarPagoExitoso = ref(false)
@@ -20,7 +20,7 @@ export function usePaymentFlow({ datosServicio, mostrandoOverlay, overlayTipo, m
 
     if (!qrPayloadStr) {
       console.error('No se encontró el payload del QR')
-      mostrarCarrusel.value = true
+      mostrarCarrusel.value = hayPendingFacturas ? !hayPendingFacturas() : true
       return
     }
 
@@ -58,7 +58,7 @@ export function usePaymentFlow({ datosServicio, mostrandoOverlay, overlayTipo, m
       console.error('Error al consultar XML:', error)
       mostrandoOverlay.value = false
       limpiarLocalStorage()
-      mostrarCarrusel.value = true
+      mostrarCarrusel.value = hayPendingFacturas ? !hayPendingFacturas() : true
     }
   }
 
@@ -117,7 +117,7 @@ export function usePaymentFlow({ datosServicio, mostrandoOverlay, overlayTipo, m
     emailEnviado.value = false
     emailError.value = false
     emailDestinatario.value = ''
-    mostrarCarrusel.value = true
+    mostrarCarrusel.value = hayPendingFacturas ? !hayPendingFacturas() : true
   }
 
   function resetearPaymentFlow() {

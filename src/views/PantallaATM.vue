@@ -26,13 +26,23 @@ import { usePaymentFlow } from '@/composables/usePaymentFlow'
 
 const { t, locale } = useI18n()
 
+// Evitar duplicar llamadas a API cuando el flujo de pago facturas se dispara dos veces (ej. doble mount)
+let procesandoPagoFacturas = false
+
 // Detectar si viene de 3D Secure o tiene pago de facturas pendiente
 const urlParams = new URLSearchParams(window.location.search)
 const viene3DSecure = urlParams.has('id')
-const tienePendingFacturas = !!localStorage.getItem('pendingFacturas')
+// Siempre leer de localStorage en el momento (no solo al cargar)
+const hayPendingFacturas = () => !!localStorage.getItem('pendingFacturas')
+const tienePendingFacturas = hayPendingFacturas()
 
 // Estado principal
 const mostrarCarrusel = ref(!viene3DSecure && !tienePendingFacturas)
+
+// Mostrar carrusel solo si no hay facturas pendientes (leer siempre de localStorage)
+function mostrarCarruselSiAplica() {
+  mostrarCarrusel.value = !hayPendingFacturas()
+}
 const mostrandoOverlay = ref(false)
 const overlayTipo = ref('ScanQR')
 const mostrarModalServicio = ref(false)
@@ -71,7 +81,8 @@ const {
 
 const payment = usePaymentFlow({
   datosServicio, mostrandoOverlay, overlayTipo,
-  mostrarCarrusel, mostrarModalServicio, extraerDatosXML
+  mostrarCarrusel, mostrarModalServicio, extraerDatosXML,
+  hayPendingFacturas
 })
 
 const overlayActivo = computed(() => mostrandoOverlay.value && !inactivity.mostrarAdvertencia.value)
@@ -126,7 +137,7 @@ function resetearTodo() {
 const inactivity = useInactivityTimer({
   onTimeout: () => {
     resetearTodo()
-    mostrarCarrusel.value = true
+    mostrarCarruselSiAplica()
   },
   onCancelado: () => {
     if (mostrandoOverlay.value) enfocarInputQR()
@@ -288,35 +299,55 @@ function onCancelarRFC() {
 }
 
 async function onPagoFacturasCompletado(data) {
+  if (procesandoPagoFacturas) return
+  procesandoPagoFacturas = true
   mostrarModalFacturas.value = false
 
   mostrandoOverlay.value = true
   overlayTipo.value = 'Load'
 
   try {
+    // Siempre leer pendingFacturas del localStorage como fuente de verdad para InsArdoc
+    const pendingStr = localStorage.getItem('pendingFacturas')
+    const pending = pendingStr ? JSON.parse(pendingStr) : null
+    const custId = (pending?.custId || clienteEmpresaClaveActual.value || '').trim()
+    const totalAPagar = pending?.totalAPagar ?? data?.amount
+    const desglose = pending?.desglose ?? data?.desglose ?? []
+
+    if (!custId || !desglose?.length) {
+      throw new Error('Faltan datos de facturas pendientes. Vuelve a intentar desde el inicio.')
+    }
+
+    // Actualizar ref por si venía solo por data
+    clienteEmpresaClaveActual.value = custId
+
     // Generar Folio (6 dígitos) y Serie (3 letras) al azar
     const folio = String(Math.floor(Math.random() * 999999) + 1).padStart(6, '0')
     const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     const serie = Array.from({ length: 3 }, () => letras[Math.floor(Math.random() * 26)]).join('')
 
+    // Leer registroId/email antes de insArdoc (insArdoc borra el localStorage al responder)
+    const registroId = localStorage.getItem('registroId')
+    const emailPago = data?.email || pending?.email || 'N/A'
+    const transactionIdPago = data?.transactionId || pending?.transactionId
+
     const resultado = await insArdoc({
-      custId: clienteEmpresaClaveActual.value,
-      totalPayment: data.amount,
-      formaPago: data.formaPago || '04',
+      custId,
+      totalPayment: totalAPagar,
+      formaPago: data?.formaPago || pending?.formaPago || '04',
       folio,
       serie,
-      facturas: data.desglose
+      facturas: desglose
     })
 
     if (resultado.result !== 200) {
       throw new Error(resultado.message || 'Error al registrar pago en ERP')
     }
 
-    // Actualizar registro de pago local
-    const registroId = localStorage.getItem('registroId')
+    // Actualizar registro de pago local (insArdoc ya borró el localStorage al responder)
     if (registroId) {
       try {
-        await actualizarPago(registroId, data.transactionId, data.email || 'N/A', 'completed')
+        await actualizarPago(registroId, transactionIdPago || 'N/A', emailPago, 'completed')
       } catch (err) {
         console.error('Error al actualizar registro de pago:', err)
       }
@@ -324,11 +355,8 @@ async function onPagoFacturasCompletado(data) {
 
     mostrandoOverlay.value = false
 
-    // Todo exitoso, limpiar datos de facturas
-    localStorage.removeItem('pendingFacturas')
-
     // Mostrar éxito y volver al carrusel
-    payment.transactionIdPago.value = data.transactionId
+    payment.transactionIdPago.value = transactionIdPago || data?.transactionId || ''
     payment.mostrarPagoExitoso.value = true
 
   } catch (error) {
@@ -337,9 +365,7 @@ async function onPagoFacturasCompletado(data) {
     mensajeError.value = error.message || 'Error al registrar el pago en el sistema.'
     mostrarDialogoError.value = true
   } finally {
-    localStorage.removeItem('registroId')
-    localStorage.removeItem('paymentEmail')
-    localStorage.removeItem('pendingPayment')
+    procesandoPagoFacturas = false
   }
 }
 
@@ -415,7 +441,7 @@ async function manejarPagoFallido(transactionId) {
   }
   localStorage.removeItem('pendingFacturas')
   payment.limpiarLocalStorage()
-  mostrarCarrusel.value = true
+  mostrarCarruselSiAplica()
 }
 
 // Lifecycle
@@ -473,7 +499,7 @@ onMounted(async () => {
       })
     } else {
       localStorage.removeItem('pendingFacturas')
-      mostrarCarrusel.value = true
+      mostrarCarruselSiAplica()
     }
   } else if (viene3DSecure) {
     // Solo servicios (no facturas)
